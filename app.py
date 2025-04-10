@@ -31,21 +31,25 @@ end_date = st.sidebar.date_input("Data Final", pd.to_datetime("today"))
 def load_data(ticker, start, end):
     df = yf.download(ticker, start=start, end=end)
     if df.empty:
+        return None
+
+    try:
+        df['SMA20'] = df['Close'].rolling(window=20).mean()
+        df['SMA50'] = df['Close'].rolling(window=50).mean()
+        rsi = ta.momentum.RSIIndicator(close=df['Close'], window=14)
+        df['RSI'] = rsi.rsi()
         return df
-    df['SMA20'] = df['Close'].rolling(window=20).mean()
-    df['SMA50'] = df['Close'].rolling(window=50).mean()
-    rsi = ta.momentum.RSIIndicator(close=df['Close'], window=14)
-    df['RSI'] = rsi.rsi()
-    return df
+    except Exception as e:
+        return None
 
 # Mostrar gráficos para cada ação selecionada
 for ticker in tickers:
     df = load_data(ticker, start_date, end_date)
 
     st.subheader(f"📊 {ticker}")
-    
-    if df.empty:
-        st.warning(f"⚠️ Não foi possível carregar dados para {ticker}")
+
+    if df is None:
+        st.warning(f"⚠️ Não foi possível carregar dados ou calcular indicadores para {ticker}.")
         continue
 
     # Gráfico de Preço + Médias Móveis
