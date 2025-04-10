@@ -14,34 +14,39 @@ ticker = st.sidebar.text_input("Código da Ação (ex: PETR4.SA)", value="PETR4.
 start_date = st.sidebar.date_input("Data Inicial", pd.to_datetime("2023-01-01"))
 end_date = st.sidebar.date_input("Data Final", pd.to_datetime("today"))
 
-# Baixar dados
+# Baixar dados com tratamento de erro
 @st.cache_data
 def load_data(ticker, start, end):
-    df = yf.download(ticker, start=start, end=end)
-    if df.empty:
+    try:
+        df = yf.download(ticker, start=start, end=end)
+        if df.empty:
+            return df
+
+        # Indicadores técnicos
+        df['SMA20'] = df['Close'].rolling(window=20).mean()
+        df['SMA50'] = df['Close'].rolling(window=50).mean()
+
+        rsi = ta.momentum.RSIIndicator(close=df['Close'], window=14)
+        df['RSI'] = rsi.rsi()
+
+        macd = ta.trend.MACD(close=df['Close'])
+        df['MACD'] = macd.macd()
+        df['MACD_signal'] = macd.macd_signal()
+
+        bb = ta.volatility.BollingerBands(close=df['Close'], window=20)
+        df['BB_upper'] = bb.bollinger_hband()
+        df['BB_lower'] = bb.bollinger_lband()
+
+        # Remove linhas com NaN
+        df.dropna(inplace=True)
+
         return df
-    df['SMA20'] = df['Close'].rolling(window=20).mean()
-    df['SMA50'] = df['Close'].rolling(window=50).mean()
-    
-    # RSI
-    rsi = ta.momentum.RSIIndicator(close=df['Close'], window=14)
-    df['RSI'] = rsi.rsi()
-    
-    # MACD
-    macd = ta.trend.MACD(close=df['Close'])
-    df['MACD'] = macd.macd()
-    df['MACD_signal'] = macd.macd_signal()
-    
-    # Bollinger Bands
-    bb = ta.volatility.BollingerBands(close=df['Close'], window=20)
-    df['BB_upper'] = bb.bollinger_hband()
-    df['BB_lower'] = bb.bollinger_lband()
-    
-    return df
+    except Exception as e:
+        st.error(f"Erro ao carregar dados: {e}")
+        return pd.DataFrame()
 
 df = load_data(ticker, start_date, end_date)
 
-# Verificar se há dados
 if df.empty:
     st.error("❌ Não foram encontrados dados para esse ticker ou período. Tente outro.")
     st.stop()
